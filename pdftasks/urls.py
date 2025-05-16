@@ -23,7 +23,8 @@ urlpatterns = [
     path('excel/',views.convertto_excel.as_view()),        #not accepting timezones
     path('csv/',views.convertto_csv.as_view()),
     path('pdf/',views.GeneratePDF.as_view()),
-    path('rev/',views.extractdata.as_view())
+    path('rev/',views.extractdata.as_view()),
+    path('pdfstore/',views.UploadPDFView.as_view())
 ]
 
 

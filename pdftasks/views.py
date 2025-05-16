@@ -7,6 +7,69 @@ from django.http import HttpResponse
 from django.views import View
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import fitz  # PyMuPDF
+
+
+
+# pip install PyMuPDF
+class UploadPDFView(APIView):
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file or not file.name.endswith('.pdf'):
+            return Response({'error': 'Upload a valid .pdf file'}, status=400)
+
+        try:
+            pdf_content = file.read()
+            with fitz.open(stream=pdf_content, filetype="pdf") as doc:
+                text = ""
+                for page in doc:
+                    text += page.get_text()
+
+            lines = text.strip().split('\n')
+
+            # print("Extracted Text:")
+            # print(text)
+            # print(lines)
+
+
+            for line in lines:
+                if "employename" not in line.lower():
+                    parts = line.strip().split(',')
+
+                    # Initialize with default values
+                    employename = designation = dateofjoining = None
+
+                    for part in parts:
+                        key_value = part.strip().split(":", 1)
+                        if len(key_value) != 2:
+                            continue
+
+                        key, value = key_value[0].strip().lower(), key_value[1].strip()
+
+                        if key == "employename":
+                            employename = value
+                        elif key == "designation":
+                            designation = value
+                        elif key == "dateofjoining":
+                            dateofjoining = value
+
+                    # Only save if all required fields are present
+                    if employename and designation and dateofjoining:
+                        EmployeeDetails.objects.create(
+                            employename=employename,
+                            designation=designation,
+                            dateofjoining=dateofjoining  # Assuming this is a DateTimeField
+                        )
+
+                        print(f"Saving: {employename}, {designation}, {dateofjoining}, {workingproject}")
+
+
+
+            return Response({'message': 'PDF data saved to database'}, status=200)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
 
 
@@ -15,31 +78,44 @@ class extractdata(APIView):
         file=request.FILES.get('file')
 
         if not file:
-            return response('no file uploaded')
+            return Response('no file uploaded')
 
         try:
             if file.name.endswith(".csv"):
                 convert_df=pd.read_csv(file)
             elif file.name.endswith('.xlsx'):
                 convert_df=pd.read_excel(file)
+            elif file.name.endswith('.txt'):
+                content = file.read().decode('utf-8')
+                convert_df = content.strip().split('\n')
+
+                for line in convert_df:                             #for text files
+                    employename, designation, dateofjoining, workingproject = line.strip().split(',')
+
+                    EmployeeDetails.objects.create(
+                       employename=employename,
+                       designation=designation,
+                       dateofjoining=dateofjoining,
+                       workingproject=workingproject
+                    )
+                
+                
             else:
                 return Response("unsuported file format")
 
-            for _, row in convert_df.iterrows():
-                EmployeeDetails.objects.create(
-                    employename=row['employename'],
-                    designation=row['designation'],
-                    dateofjoining=row['dateofjoining'],
-                    workingproject=row['workingproject']
-                )
+            # for _, row in convert_df.iterrows():         #for excel and csv  
+                # EmployeeDetails.objects.create(
+                    # employename=row['employename'],
+                    # designation=row['designation'],
+                    # dateofjoining=row['dateofjoining'],
+                    # workingproject=row['workingproject']
+                # )
+
+
             return Response('data uploaded successfully')
         
         except Exception as e:
             return Response({'error': str(e)}, status=500)
-
-
-
-
 
 class GeneratePDF(APIView):
     def get(self, request, *args, **kwargs):
